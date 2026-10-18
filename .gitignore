@@ -1,0 +1,12 @@
+# downloaded data: re-fetch with `python -m nflparlay.cli update`
+data/
+# generated page and build output
+web/data.json
+web/nfl-parlay-desk.html
+web/wrapped.html
+web/*.png
+__pycache__/
+.pytest_cache/
+*.zip
+# secrets
+.env

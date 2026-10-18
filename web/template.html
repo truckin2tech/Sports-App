@@ -1,0 +1,509 @@
+<title>NFL Parlay Desk</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: scoreboard-style header strip, then picks list beside a sticky parlay slip; backtest is its own tab. */
+:root {
+  --bg: #f2f5f1;
+  --surface: #ffffff;
+  --surface-2: #e8eee9;
+  --line: #d3dcd5;
+  --ink: #14211a;
+  --ink-2: #44554b;
+  --ink-3: #6b7b71;
+  --accent: #1d6b49;
+  --accent-ink: #ffffff;
+  --accent-soft: #d9eadf;
+  --gain: #1d6b49;
+  --loss: #a8321f;
+  --font-display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1511; --surface: #161f19; --surface-2: #1e2a22; --line: #2c3a31;
+    --ink: #e8eee9; --ink-2: #b4c2b9; --ink-3: #8a9b90;
+    --accent: #5cc79a; --accent-ink: #0a1410; --accent-soft: #1f3a2d;
+    --gain: #5cc79a; --loss: #f08a76;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1511; --surface: #161f19; --surface-2: #1e2a22; --line: #2c3a31;
+  --ink: #e8eee9; --ink-2: #b4c2b9; --ink-3: #8a9b90;
+  --accent: #5cc79a; --accent-ink: #0a1410; --accent-soft: #1f3a2d;
+  --gain: #5cc79a; --loss: #f08a76;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--font-body); font-size: 15px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 56px;
+}
+.wrap { max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+h1, h2, h3 { font-family: var(--font-display); font-weight: 600; letter-spacing: 0.01em; margin: 0; text-wrap: balance; }
+p { margin: 0; }
+.num { font-variant-numeric: tabular-nums; }
+.label { font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+
+/* header strip */
+.top { display: flex; flex-wrap: wrap; gap: 16px 32px; align-items: flex-end; justify-content: space-between; }
+.top h1 { font-size: 40px; line-height: 1; font-weight: 700; }
+.top .sub { color: var(--ink-2); margin-top: 6px; }
+.stat { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.stat .big { font-family: var(--font-display); font-size: 44px; font-weight: 700; line-height: 1; color: var(--accent); }
+.stat .small { color: var(--ink-2); max-width: 36ch; font-size: 14px; }
+.notice {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 6px;
+  padding: 12px 14px; color: var(--ink-2); font-size: 14px;
+}
+.notice strong { color: var(--ink); font-weight: 600; }
+
+/* tabs */
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); }
+.tab {
+  font: 600 18px/1 var(--font-display); letter-spacing: 0.03em; text-transform: uppercase;
+  background: none; border: 0; border-bottom: 3px solid transparent; color: var(--ink-3);
+  padding: 10px 14px 9px; cursor: pointer;
+}
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.tab:hover { color: var(--ink); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* picks + slip */
+.board { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 24px; align-items: start; }
+@media (max-width: 860px) { .board { grid-template-columns: minmax(0, 1fr); } }
+.games { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.day { margin-top: 8px; }
+.game { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.game-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--ink-3); padding: 0 2px; }
+.flag { color: var(--loss); font-weight: 600; }
+.sides { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.side {
+  text-align: left; font: inherit; color: var(--ink); cursor: pointer;
+  background: var(--bg); border: 1.5px solid var(--line); border-radius: 5px;
+  padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; min-width: 0;
+}
+.side:hover:not(:disabled) { border-color: var(--ink-3); }
+.side[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.side:disabled { opacity: .5; cursor: not-allowed; }
+.side .row1 { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.side .team { font: 700 26px/1 var(--font-display); letter-spacing: 0.02em; }
+.side .ml { font-weight: 600; }
+.side .row2 { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 13px; color: var(--ink-2); }
+.side .pick { color: var(--accent); font-weight: 600; }
+
+.slip { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 16px; display: flex; flex-direction: column; gap: 14px; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 16px); }
+@media (max-width: 860px) { .slip { position: static; } }
+.slip h2 { font-size: 24px; }
+.legs { display: flex; flex-direction: column; gap: 0; margin: 0; padding: 0; list-style: none; }
+.leg { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); }
+.leg:first-child { border-top: 0; }
+.leg b { font: 700 20px/1 var(--font-display); letter-spacing: 0.02em; }
+.leg .d { font-size: 13px; color: var(--ink-3); }
+.x { background: none; border: 1px solid var(--line); color: var(--ink-2); border-radius: 4px; width: 28px; height: 28px; cursor: pointer; font-size: 16px; line-height: 1; }
+.x:hover { border-color: var(--ink-3); color: var(--ink); }
+.field { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.field input {
+  width: 110px; font: inherit; color: var(--ink); background: var(--bg);
+  border: 1.5px solid var(--line); border-radius: 5px; padding: 6px 8px; text-align: right;
+}
+dl.out { margin: 0; display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; }
+dl.out dt { color: var(--ink-2); }
+dl.out dd { margin: 0; font-weight: 600; text-align: right; }
+dl.out .hero dt { font-weight: 600; color: var(--ink); }
+dl.out .hero { display: contents; }
+.pos { color: var(--gain); } .neg { color: var(--loss); }
+.verdict { font-size: 14px; color: var(--ink-2); border-top: 1px solid var(--line); padding-top: 12px; }
+.btn { font: 600 14px var(--font-body); background: none; border: 1px solid var(--line); color: var(--ink); border-radius: 5px; padding: 7px 12px; cursor: pointer; align-self: flex-start; }
+.btn:hover { border-color: var(--ink-3); }
+.empty { color: var(--ink-2); font-size: 14px; }
+.ex { font-size: 12px; color: var(--ink-3); }
+
+.prices { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.pf { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--ink-3); padding: 0 2px; }
+.pf input { width: 84px; font: inherit; color: var(--ink); background: var(--bg); border: 1.5px solid var(--line); border-radius: 5px; padding: 4px 8px; text-align: right; }
+.pf input.set { border-color: var(--accent); }
+.pf input.bad { border-color: var(--loss); }
+.tools { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; color: var(--ink-2); font-size: 13px; }
+.tag { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; color: var(--accent); margin-left: 4px; }
+
+/* backtest */
+.panel { display: flex; flex-direction: column; gap: 28px; }
+.section { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.section h2 { font-size: 28px; }
+.section p { color: var(--ink-2); max-width: 70ch; }
+.tablewrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { text-align: right; padding: 10px 14px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); background: var(--surface-2); }
+tr:last-child td { border-bottom: 0; }
+tr.hl td { font-weight: 600; }
+.chartbox { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 14px 14px 8px; }
+.chartbox svg { width: 100%; height: auto; display: block; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--ink-2); padding: 0 2px 8px; }
+.legend i { display: inline-block; vertical-align: middle; margin-right: 6px; }
+.tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--bg); font-size: 13px; padding: 6px 9px; border-radius: 4px; white-space: nowrap; z-index: 2; transform: translate(-50%, -100%); }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 14px; display: flex; flex-direction: column; gap: 6px; }
+.card h3 { font-size: 22px; }
+.card p { font-size: 14px; color: var(--ink-2); }
+.foot { font-size: 13px; color: var(--ink-3); max-width: 80ch; }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>NFL Parlay Desk</h1>
+      <p class="sub" id="sub"></p>
+    </div>
+    <div class="stat">
+      <span class="big num" id="bigacc"></span>
+      <span class="small" id="bigtxt"></span>
+    </div>
+  </header>
+
+  <p class="notice"><strong>Probabilities, not guarantees.</strong> No model reaches 99% on football. Win chances here are estimates checked against 11 seasons of games, and a parlay only hits when every leg does: four 66% picks hit together about 19% of the time.</p>
+
+  <div class="tabs" role="tablist" aria-label="Sections">
+    <button class="tab" role="tab" id="t-picks" aria-controls="p-picks" aria-selected="true">This week</button>
+    <button class="tab" role="tab" id="t-back" aria-controls="p-back" aria-selected="false">Backtest</button>
+  </div>
+
+  <section id="p-picks" role="tabpanel" aria-labelledby="t-picks">
+    <div class="board">
+      <div class="games" id="games"></div>
+      <aside class="slip" aria-label="Parlay slip">
+        <h2>Parlay slip</h2>
+        <div id="slipbody"></div>
+      </aside>
+    </div>
+  </section>
+
+  <section id="p-back" role="tabpanel" aria-labelledby="t-back" hidden>
+    <div class="panel">
+      <div class="section">
+        <h2>How accurate is it?</h2>
+        <p id="accintro"></p>
+        <div class="tablewrap"><table id="acc"></table></div>
+        <p class="foot">Each season is predicted from earlier seasons only, so the model never sees the games it is graded on. Brier score and log loss measure probability quality; lower is better.</p>
+      </div>
+
+      <div class="section">
+        <h2>When it says 70%, does it happen 70% of the time?</h2>
+        <p>Games grouped by how confident the model was in its pick. If the model is honest, the bar (how often the pick won) lines up with the tick (what the model predicted).</p>
+        <div class="chartbox" id="chartbox">
+          <div class="legend">
+            <span><i style="width:14px;height:10px;background:var(--accent);border-radius:2px 2px 0 0"></i>Pick won (actual)</span>
+            <span><i style="width:16px;height:0;border-top:3px solid var(--ink)"></i>Model predicted</span>
+          </div>
+          <svg id="chart" viewBox="0 0 640 280" role="img" aria-label="Calibration chart: actual win rate versus predicted win rate by confidence bucket"></svg>
+        </div>
+        <div class="tablewrap"><table id="cal"></table></div>
+      </div>
+
+      <div class="section">
+        <h2>What parlays would have paid</h2>
+        <p>Each week, parlay the model's most confident picks from different games, settle at the book's moneyline prices, and stake one unit per parlay.</p>
+        <div class="tablewrap"><table id="sim"></table></div>
+        <p class="foot">Parlays hit about as often as predicted. They still lost money, because the sportsbook's margin is built into every price.</p>
+      </div>
+
+      <div class="cols">
+        <div class="card"><h3>What it uses</h3><p>Elo ratings with margin of victory, rest days, divisional games, and the sportsbook's own line with its margin removed.</p></div>
+        <div class="card"><h3>What it tested and dropped</h3><p>Injury reports and a quarterback-out flag. They added no accuracy beyond the line, which already reflects them, so they show as flags only.</p></div>
+        <div class="card"><h3>Limits</h3><p>Lines are a snapshot, not live. Same-game parlays are not supported because their legs are correlated. Check current prices before any bet.</p></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+const DATA = __DATA__;
+
+const $ = (s) => document.querySelector(s);
+const pct = (v, d = 1) => (v * 100).toFixed(d) + "%";
+const toDec = (a) => (a > 0 ? 1 + a / 100 : 1 + 100 / -a);
+const toAm = (d) => (d >= 2 ? (d - 1) * 100 : -100 / (d - 1));
+const am = (a) => (a > 0 ? "+" : "−") + Math.abs(Math.round(a));
+const usd = (v) => (v < 0 ? "−$" : "$") + Math.abs(v).toFixed(2);
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function dayLabel(iso) {
+  const [y, m, d] = iso.split("-").map(Number);
+  return DAYS[new Date(y, m - 1, d).getDay()] + " " + MONTHS[m - 1] + " " + d;
+}
+function timeLabel(t) {
+  const [h, mi] = t.split(":").map(Number);
+  return ((h + 11) % 12 + 1) + ":" + String(mi).padStart(2, "0") + " " + (h >= 12 ? "PM" : "AM") + " ET";
+}
+
+/* header */
+const rep = DATA.report;
+$("#sub").textContent = `${DATA.season} season, week ${DATA.week}`;
+$("#bigacc").textContent = pct(rep["This model"].accuracy);
+$("#bigtxt").textContent = `of games called correctly in the backtest. The sportsbook line: ${pct(rep["Sportsbook line"].accuracy)}.`;
+
+/* FanDuel prices the viewer types in; they replace the data price for that team */
+const overrides = new Map();
+const STORE = "nfl-parlay-fd-prices";
+try {
+  const saved = JSON.parse(localStorage.getItem(STORE) || "{}");
+  Object.entries(saved).forEach(([k, v]) => { if (isFinite(v) && Math.abs(v) >= 100) overrides.set(k, v); });
+} catch (e) {}
+function savePrices() { try { localStorage.setItem(STORE, JSON.stringify(Object.fromEntries(overrides))); } catch (e) {} }
+function parsePrice(text) {
+  const t = text.trim().replace(/\u2212/g, "-");
+  if (!/^[+-]?\d{3,5}$/.test(t)) return null;
+  const v = parseInt(t, 10);
+  return Math.abs(v) >= 100 ? v : null;
+}
+
+/* sides */
+function sideInfo(g, side) {
+  const home = side === "home";
+  const key = g.id + "|" + side;
+  const ml = overrides.has(key) ? overrides.get(key) : (home ? g.homeML : g.awayML);
+  const p = home ? g.homeProb : 1 - g.homeProb;
+  const fair = home ? g.homeMarket : 1 - g.homeMarket;
+  return { team: home ? g.home : g.away, ml, p, fair, game: g, side, fd: overrides.has(key) };
+}
+
+/* state: gameId -> side */
+const picks = new Map();
+const games = DATA.games;
+const byId = Object.fromEntries(games.map((g) => [g.id, g]));
+
+function sideHTML(i) {
+  const fav = i.p >= 0.5;
+  return `<span class="row1"><span class="team">${i.team}</span><span class="ml num">${i.ml == null ? "n/a" : am(i.ml)}${i.fd ? '<span class="tag">FANDUEL</span>' : ""}</span></span>` +
+    `<span class="row2 num"><span class="${fav ? "pick" : ""}">Model ${pct(i.p)}</span><span>Line ${pct(i.fair)}</span></span>`;
+}
+
+function renderGames() {
+  const box = $("#games");
+  box.textContent = "";
+  const tools = document.createElement("div");
+  tools.className = "tools";
+  tools.innerHTML = `<span>Prices come from the data. Type FanDuel's price under a team to use it instead.</span><button class="btn" id="resetprices" type="button">Reset prices</button>`;
+  tools.querySelector("#resetprices").addEventListener("click", () => { overrides.clear(); savePrices(); renderGames(); renderSlip(); });
+  box.appendChild(tools);
+  let lastDay = "";
+  games.forEach((g) => {
+    if (g.date !== lastDay) {
+      lastDay = g.date;
+      const h = document.createElement("div");
+      h.className = "label day";
+      h.textContent = dayLabel(g.date);
+      box.appendChild(h);
+    }
+    const card = document.createElement("div");
+    card.className = "game";
+    const flag = g.qbOut ? `<span class="flag">QB ${g.qbOut > 0 ? "home" : "away"} listed out?</span>` : "";
+    const spread = g.spread == null ? "" : `<span>${g.home} ${g.spread > 0 ? "−" : "+"}${Math.abs(g.spread)}</span>`;
+    card.innerHTML = `<div class="game-meta"><span>${g.away} @ ${g.home}</span><span>${timeLabel(g.time)}</span>${spread}${flag}</div><div class="sides"></div>`;
+    const sides = card.querySelector(".sides");
+    ["away", "home"].forEach((s) => {
+      const i = sideInfo(g, s);
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "side";
+      b.dataset.id = g.id;
+      b.dataset.side = s;
+      b.disabled = i.ml == null;
+      b.setAttribute("aria-pressed", picks.get(g.id) === s ? "true" : "false");
+      b.innerHTML = sideHTML(i);
+      b.addEventListener("click", () => {
+        if (picks.get(g.id) === s) picks.delete(g.id);
+        else picks.set(g.id, s);
+        sync();
+      });
+      sides.appendChild(b);
+    });
+    const prices = document.createElement("div");
+    prices.className = "prices";
+    ["away", "home"].forEach((s) => {
+      const key = g.id + "|" + s;
+      const info = sideInfo(g, s);
+      const dflt = s === "home" ? g.homeML : g.awayML;
+      const wrap = document.createElement("label");
+      wrap.className = "pf";
+      wrap.innerHTML = `<span>${info.team} FanDuel price</span>`;
+      const inp = document.createElement("input");
+      inp.type = "text"; inp.inputMode = "numeric"; inp.autocomplete = "off";
+      inp.id = `fd-${g.id}-${s}`;
+      inp.placeholder = dflt == null ? "" : am(dflt);
+      inp.setAttribute("aria-label", `FanDuel price for ${info.team}`);
+      if (overrides.has(key)) { inp.value = am(overrides.get(key)); inp.classList.add("set"); }
+      inp.addEventListener("input", () => {
+        const raw = inp.value;
+        const v = parsePrice(raw);
+        inp.classList.toggle("bad", raw.trim() !== "" && v == null);
+        inp.classList.toggle("set", v != null);
+        if (v == null) overrides.delete(key); else overrides.set(key, v);
+        savePrices();
+        const btn = card.querySelector(`.side[data-side="${s}"]`);
+        btn.innerHTML = sideHTML(sideInfo(g, s));
+        btn.disabled = sideInfo(g, s).ml == null;
+        renderSlip();
+      });
+      wrap.appendChild(inp);
+      prices.appendChild(wrap);
+    });
+    card.appendChild(prices);
+    box.appendChild(card);
+  });
+}
+
+function syncButtons() {
+  document.querySelectorAll(".side").forEach((b) => {
+    b.setAttribute("aria-pressed", picks.get(b.dataset.id) === b.dataset.side ? "true" : "false");
+  });
+}
+
+/* slip */
+let stake = 10;
+let exampleSlip = true;
+
+function renderSlip() {
+  const legs = [...picks].map(([id, s]) => sideInfo(byId[id], s));
+  const body = $("#slipbody");
+  const list = legs.map((l, i) =>
+    `<li class="leg"><div><b>${l.team}</b> <span class="num">${am(l.ml)}</span>${l.fd ? '<span class="tag">FANDUEL</span>' : ""}<div class="d num">${l.game.away} @ ${l.game.home} · model ${pct(l.p)}</div></div>` +
+    `<button class="x" type="button" data-i="${i}" aria-label="Remove ${l.team}">×</button></li>`).join("");
+
+  let out = "";
+  if (legs.length >= 2) {
+    const dec = legs.reduce((a, l) => a * toDec(l.ml), 1);
+    const p = legs.reduce((a, l) => a * l.p, 1);
+    const ev = p * (dec - 1) - (1 - p);
+    const k = Math.max(0, (((dec - 1) * p) - (1 - p)) / (dec - 1));
+    out = `<dl class="out num">
+      <div class="hero"><dt>Combined price</dt><dd>${am(toAm(dec))} (${dec.toFixed(2)}x)</dd></div>
+      <dt>Profit if it hits</dt><dd>${usd(stake * (dec - 1))}</dd>
+      <dt>Book implies a hit</dt><dd>${pct(1 / dec)}</dd>
+      <dt>Model hit chance</dt><dd>${pct(p)}</dd>
+      <dt>Expected value</dt><dd class="${ev >= 0 ? "pos" : "neg"}">${usd(stake * ev)}</dd>
+      <dt>Full-Kelly stake</dt><dd>${pct(k)} of bankroll</dd>
+    </dl>
+    <p class="verdict">${ev >= 0
+      ? "The model sees a small edge here. The backtest found no consistent edge over the line, so treat this as within the model's error."
+      : `At the book's price this parlay loses about ${usd(Math.abs(stake * ev))} per ${usd(stake)} staked on average.`}
+      ${legs.length >= 3 ? " Every added leg lowers the hit chance." : ""}</p>`;
+  } else {
+    out = `<p class="empty">${legs.length ? "Add one more game to price a parlay." : "Pick a team in two or more games to build a parlay."} Only one side per game.</p>`;
+  }
+
+  body.innerHTML = `<ul class="legs">${list}</ul>` +
+    (exampleSlip && legs.length ? `<p class="ex">Example slip: the three picks the model rates most likely to win. Not advice.</p>` : "") +
+    `<div class="field"><label for="stake">Stake ($)</label><input id="stake" type="number" min="0" step="1" inputmode="decimal" value="${stake}"></div>` +
+    out + (legs.length ? `<button class="btn" id="clear" type="button">Clear slip</button>` : "");
+
+  body.querySelectorAll(".x").forEach((x) => x.addEventListener("click", () => {
+    exampleSlip = false;
+    picks.delete(legs[+x.dataset.i].game.id);
+    sync();
+  }));
+  const st = body.querySelector("#stake");
+  st.addEventListener("input", () => {
+    const v = parseFloat(st.value);
+    stake = isFinite(v) && v >= 0 ? v : 0;
+    const pos = st.selectionStart;
+    renderSlip();
+    const n = $("#stake"); n.focus(); try { n.setSelectionRange(pos, pos); } catch (e) {}
+  });
+  const c = body.querySelector("#clear");
+  if (c) c.addEventListener("click", () => { exampleSlip = false; picks.clear(); sync(); });
+}
+
+function sync() { syncButtons(); renderSlip(); }
+
+/* start with the three highest-probability picks as an example */
+games
+  .map((g) => (g.homeProb >= 0.5 ? sideInfo(g, "home") : sideInfo(g, "away")))
+  .filter((i) => i.ml != null)
+  .sort((a, b) => b.p - a.p)
+  .slice(0, 3)
+  .forEach((i) => picks.set(i.game.id, i.side));
+renderGames();
+renderSlip();
+
+/* backtest tab */
+const RK = ["Sportsbook line", "Elo only", "This model"];
+$("#accintro").textContent = `${DATA.nGames.toLocaleString()} games, ${DATA.seasons[0]} through ${DATA.seasons[1]}. The model matches the sportsbook line and does not beat it.`;
+$("#acc").innerHTML = `<tr><th>Source</th><th>Games</th><th>Accuracy</th><th>Brier</th><th>Log loss</th></tr>` +
+  RK.map((k) => `<tr class="${k === "This model" ? "hl" : ""}"><td>${k}</td><td>${rep[k].games.toLocaleString()}</td><td>${pct(rep[k].accuracy)}</td><td>${rep[k].brier.toFixed(4)}</td><td>${rep[k].log_loss.toFixed(4)}</td></tr>`).join("");
+
+$("#cal").innerHTML = `<tr><th>Model said</th><th>Games</th><th>Predicted</th><th>Actual</th></tr>` +
+  DATA.calibration.map((c) => `<tr><td>${c.bin}</td><td>${c.n.toLocaleString()}</td><td>${pct(c.pred)}</td><td>${pct(c.act)}</td></tr>`).join("");
+
+$("#sim").innerHTML = `<tr><th>Legs</th><th>Parlays</th><th>Predicted hit</th><th>Actual hit</th><th>Return per unit</th></tr>` +
+  Object.keys(DATA.sim).map((n) => {
+    const s = DATA.sim[n];
+    return `<tr><td>${n}-leg</td><td>${s.parlays.toLocaleString()}</td><td>${pct(s.predicted_hit_rate)}</td><td>${pct(s.actual_hit_rate)}</td><td class="neg">${(s.roi_per_unit >= 0 ? "+" : "−") + Math.abs(s.roi_per_unit * 100).toFixed(1)}%</td></tr>`;
+  }).join("");
+
+/* calibration chart: one scale, bars from zero, tick for the prediction */
+(function chart() {
+  const W = 640, H = 280, L = 48, R = 12, T = 12, B = 52;
+  const svg = $("#chart");
+  const cal = DATA.calibration;
+  const y = (v) => T + (H - T - B) * (1 - v);
+  const slot = (W - L - R) / cal.length;
+  const bw = Math.min(72, slot * 0.6);
+  let s = "";
+  [0, 0.25, 0.5, 0.75, 1].forEach((t) => {
+    s += `<line x1="${L}" x2="${W - R}" y1="${y(t)}" y2="${y(t)}" stroke="var(--line)" stroke-width="1"/>` +
+         `<text x="${L - 8}" y="${y(t) + 4}" text-anchor="end" font-size="12" fill="var(--ink-3)">${t * 100}%</text>`;
+  });
+  cal.forEach((c, i) => {
+    const cx = L + slot * i + slot / 2;
+    const top = y(c.act), base = y(0), h = base - top, r = Math.min(4, h / 2);
+    s += `<path d="M${cx - bw / 2},${base} V${top + r} Q${cx - bw / 2},${top} ${cx - bw / 2 + r},${top} H${cx + bw / 2 - r} Q${cx + bw / 2},${top} ${cx + bw / 2},${top + r} V${base} Z" fill="var(--accent)"/>`;
+    s += `<line x1="${cx - bw / 2 - 6}" x2="${cx + bw / 2 + 6}" y1="${y(c.pred)}" y2="${y(c.pred)}" stroke="var(--ink)" stroke-width="3" stroke-linecap="round"/>`;
+    s += `<text x="${cx}" y="${H - 28}" text-anchor="middle" font-size="13" fill="var(--ink-2)">${c.bin}</text>` +
+         `<text x="${cx}" y="${H - 12}" text-anchor="middle" font-size="12" fill="var(--ink-3)">${c.n.toLocaleString()} games</text>`;
+    s += `<rect class="hit" data-i="${i}" x="${cx - slot / 2}" y="${T}" width="${slot}" height="${H - T - B}" fill="transparent"/>`;
+  });
+  s += `<line x1="${L}" x2="${W - R}" y1="${y(0)}" y2="${y(0)}" stroke="var(--ink-3)" stroke-width="1"/>`;
+  svg.innerHTML = s;
+
+  const box = $("#chartbox");
+  const tip = document.createElement("div");
+  tip.className = "tip"; tip.hidden = true;
+  box.appendChild(tip);
+  svg.querySelectorAll(".hit").forEach((r) => {
+    const show = (e) => {
+      const c = cal[+r.dataset.i];
+      tip.hidden = false;
+      tip.innerHTML = `<b>${c.bin}</b> · predicted ${pct(c.pred)}, actual ${pct(c.act)} (${c.n.toLocaleString()} games)`;
+      const bb = box.getBoundingClientRect(), rb = r.getBoundingClientRect();
+      tip.style.left = Math.min(Math.max(rb.left - bb.left + rb.width / 2, 120), bb.width - 120) + "px";
+      tip.style.top = (rb.top - bb.top + 40) + "px";
+    };
+    r.addEventListener("mousemove", show);
+    r.addEventListener("mouseenter", show);
+    r.addEventListener("mouseleave", () => { tip.hidden = true; });
+  });
+})();
+
+/* tabs */
+function setTab(name) {
+  const back = name === "backtest";
+  $("#p-picks").hidden = back;
+  $("#p-back").hidden = !back;
+  $("#t-picks").setAttribute("aria-selected", String(!back));
+  $("#t-back").setAttribute("aria-selected", String(back));
+}
+$("#t-picks").addEventListener("click", () => setTab("picks"));
+$("#t-back").addEventListener("click", () => setTab("backtest"));
+if (location.hash === "#backtest") setTab("backtest");
+</script>
