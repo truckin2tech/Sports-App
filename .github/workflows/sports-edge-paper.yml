@@ -1,0 +1,46 @@
+name: sports-edge paper trading
+
+# Hourly: pull Polymarket + nflverse, open paper trades on Value flags,
+# record pre-kickoff prices, settle finished games, commit the trade log.
+# GitHub only runs scheduled workflows from the default branch.
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sports-edge-paper
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: sports-edge
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pandas pytest
+      - run: python -m pytest -q tests
+      - run: mkdir -p data output
+      - run: python backtest.py
+      - run: python daily.py
+      - name: Commit trade log if it changed
+        run: |
+          git add ledger/paper_trades.csv
+          if git diff --cached --quiet; then
+            echo "No change to the trade log."
+            exit 0
+          fi
+          git config user.name "sports-edge bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Paper trades: $(date -u +'%Y-%m-%d %H:%M') UTC"
+          git pull --rebase
+          git push

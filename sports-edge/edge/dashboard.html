@@ -52,7 +52,7 @@ header { display: grid; gap: 14px; padding-bottom: 18px; border-bottom: 3px soli
 .stat { display: grid; }
 .stat b { font-family: var(--f-num); font-size: 1.25rem; font-weight: 500; }
 
-nav { display: flex; gap: 4px; margin: 18px 0; overflow-x: auto; }
+nav { display: flex; flex-wrap: wrap; gap: 4px; margin: 18px 0; }
 nav a { font-family: var(--f-display); text-transform: uppercase; letter-spacing: .06em; font-weight: 600;
   text-decoration: none; color: var(--muted); padding: 8px 14px; border-radius: 4px; white-space: nowrap; }
 nav a[aria-current="page"] { background: var(--ink); color: var(--bg); }
@@ -143,7 +143,7 @@ svg text { fill: var(--muted); font: 11px var(--f-num); }
     <a href="#board">Today's prices</a>
     <a href="#combo">Combo builder</a>
     <a href="#model">Model check</a>
-    <a href="#record">Track record</a>
+    <a href="#record">Paper trades</a>
   </nav>
 
   <section id="v-board">
@@ -201,8 +201,8 @@ svg text { fill: var(--muted); font: 11px var(--f-num); }
 
   <section id="v-record" hidden>
     <div class="note">
-      <h3>Every flagged pick, logged when it was flagged</h3>
-      <p>Each daily run logs new Value flags with the price at that moment, refreshes the latest price until kickoff, then settles the result. <b>CLV</b> (closing-line value) is the last price seen before kickoff minus your entry price. If it stays positive over many picks, you're consistently buying before the market moves your way. That shows real edge far sooner than wins and losses do.</p>
+      <h3>Simulated trades, no real money</h3>
+      <p>Every Value flag is bought on paper at the price when it was flagged, from a simulated $1,000 bankroll. Each stake is a quarter of the Kelly amount, capped at 2% of the bankroll. Until kickoff the latest price is recorded each run, and the trade settles from the final score. <b>CLV</b> (closing-line value) is the last price before kickoff minus the entry price. If it stays positive over a few hundred trades, the strategy is buying before the market moves its way. That shows real edge long before wins and losses do.</p>
     </div>
     <div class="cards" id="record-cards"></div>
     <div class="tablewrap"><table id="record-table"></table></div>
@@ -347,23 +347,22 @@ $("bet-table").innerHTML = `<thead><tr><th>Model beats market by</th><th>Bets</t
   bt.betting.filter(b => b.bets).map(b => `<tr><td>${Math.round(b.threshold * 100)}+ pts</td><td>${b.bets.toLocaleString()}</td><td>${pct(b.win_rate)}</td>
   <td class="${cls(b.units)}">${b.units > 0 ? "+" : ""}${b.units}</td><td class="${cls(b.roi)}">${b.roi > 0 ? "+" : ""}${(b.roi * 100).toFixed(1)}%</td></tr>`).join("") + "</tbody>";
 
-/* ---------- Track record ---------- */
-const led = DATA.ledger;
-const settled = led.filter(r => r.result && r.result !== "push");
-const profit = settled.reduce((a, r) => a + r.profit_per_dollar, 0);
-const clvs = led.filter(r => r.clv != null).map(r => r.clv);
+/* ---------- Paper trades ---------- */
+const trades = DATA.trades, ps = DATA.paper;
+const money = x => x == null ? "—" : (x < 0 ? "−$" : "$") + Math.abs(x).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
 $("record-cards").innerHTML = [
-  ["Picks logged", led.length],
-  ["Settled", settled.length],
-  ["Won", settled.length ? pct(settled.filter(r => r.result === "win").length / settled.length) : "—"],
-  ["Profit per $1 staked", settled.length ? (profit >= 0 ? "+" : "") + "$" + profit.toFixed(2) : "—"],
-  ["Average CLV", clvs.length ? signed(clvs.reduce((a, b) => a + b, 0) / clvs.length) + "¢" : "—"],
-].map(([k, v]) => `<div class="card"><span class="label">${k}</span><span class="big" style="font-size:1.5rem">${v}</span></div>`).join("");
-$("record-table").innerHTML = led.length
-  ? `<thead><tr><th>Pick</th><th>Logged</th><th>Entry</th><th>Books</th><th>Last price</th><th>CLV</th><th>Result</th></tr></thead><tbody>` +
-    led.slice().reverse().map(r => `<tr><td>${esc(r.team)} · ${esc(r.game_id)}</td><td>${esc(r.logged_at.slice(0, 10))}</td><td>${cents(r.entry_ask)}</td>
-    <td>${pct(r.book_p)}</td><td>${cents(r.last_ask)}</td><td class="${cls(r.clv)}">${r.clv == null ? "—" : signed(r.clv) + "¢"}</td><td>${esc(r.result || "open")}</td></tr>`).join("") + "</tbody>"
-  : `<tbody><tr><td style="text-align:left;white-space:normal;font-family:var(--f-body)">No picks yet. The first time a game shows a Value tag, it's logged here automatically with its entry price.</td></tr></tbody>`;
+  ["Bankroll", money(ps.bankroll), `started at ${money(ps.start_bankroll)}`],
+  ["Profit / loss", ps.settled ? `<span class="${cls(ps.pnl)}">${ps.pnl >= 0 ? "+" : ""}${money(ps.pnl)}</span>` : "—", ps.roi == null ? "nothing settled yet" : `${ps.roi >= 0 ? "+" : ""}${(ps.roi * 100).toFixed(1)}% of ${money(ps.staked)} staked`],
+  ["Trades", `${ps.settled} settled`, `${ps.open} open · ${ps.wins} won`],
+  ["Average CLV", ps.avg_clv == null ? "—" : `<span class="${cls(ps.avg_clv)}">${signed(ps.avg_clv)}¢</span>`, ps.clv_positive_share == null ? "per trade" : `${pct(ps.clv_positive_share, 0)} of trades beat the close`],
+].map(([k, v, sub]) => `<div class="card"><span class="label">${k}</span><span class="big" style="font-size:1.5rem">${v}</span><span class="muted" style="font-size:.82rem">${sub}</span></div>`).join("");
+$("record-table").innerHTML = trades.length
+  ? `<thead><tr><th>Trade</th><th>Opened</th><th>Stake</th><th>Entry</th><th>Books</th><th>Last price</th><th>CLV</th><th>Result</th><th>P&amp;L</th></tr></thead><tbody>` +
+    trades.slice().reverse().map(t => `<tr><td>${esc(t.team)} · ${esc(t.matchup)}</td><td>${esc(t.opened_at.slice(0, 10))}</td><td>${money(t.stake)}</td>
+    <td>${cents(t.entry_ask)}</td><td>${pct(t.book_p)}</td><td>${cents(t.last_ask)}</td>
+    <td class="${cls(t.clv)}">${t.clv == null ? "—" : signed(t.clv) + "¢"}</td><td>${esc(t.result || "open")}</td>
+    <td class="${cls(t.pnl)}">${t.pnl == null ? "—" : money(t.pnl)}</td></tr>`).join("") + "</tbody>"
+  : `<tbody><tr><td style="text-align:left;white-space:normal;font-family:var(--f-body)">No trades yet. The first time a game shows a Value tag, a paper trade opens here automatically at that price.</td></tr></tbody>`;
 
 /* ---------- Tabs ---------- */
 const views = ["board", "combo", "model", "record"];
