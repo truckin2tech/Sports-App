@@ -29,6 +29,7 @@ bankroll. Open trades record the latest pre-kickoff price, then settle from the 
 score (ties settle 50-50, matching Polymarket's rules). The log is
 `ledger/paper_trades.csv`, which is committed so the record is permanent and timestamped.
 
-`.github/workflows/sports-edge-paper.yml` runs this every hour and commits the log
-when it changes. GitHub only runs scheduled workflows from the default branch, so it
-starts once this is merged to `main`. It can also be started by hand from the Actions tab.
+`.github/workflows/sports-edge-paper.yml` runs this every hour on `main`, commits the
+log when it changes, and publishes the dashboard to GitHub Pages
+(Settings → Pages → Source: GitHub Actions). It can also be started by hand from the
+Actions tab.
