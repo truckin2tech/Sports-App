@@ -1,0 +1,380 @@
+<title>NFL Edge Board</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Source+Sans+3:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a stadium price board. Header summary, then one tab per job:
+   today's prices, combo pricing, model check, track record. */
+:root {
+  --bg: #f3f5f1;          /* chalk */
+  --panel: #ffffff;
+  --ink: #15201a;         /* field ink */
+  --muted: #5d6a61;
+  --line: #d9dfd8;
+  --accent: #1d6b45;      /* turf green */
+  --accent-soft: #e2efe6;
+  --good: #1f7a3d;
+  --bad: #b03a2e;
+  --warn: #9a6a00;
+  --warn-soft: #fbf1d6;
+  --f-display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "Source Sans 3", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-num: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e1511; --panel: #151f19; --ink: #e6ede7; --muted: #95a39a; --line: #26332b;
+  --accent: #5cc48a; --accent-soft: #1b2f23; --good: #6bd08f; --bad: #f08a7e;
+  --warn: #e6b84a; --warn-soft: #2d2614; color-scheme: dark;
+} }
+:root[data-theme="dark"] {
+  --bg: #0e1511; --panel: #151f19; --ink: #e6ede7; --muted: #95a39a; --line: #26332b;
+  --accent: #5cc48a; --accent-soft: #1b2f23; --good: #6bd08f; --bad: #f08a7e;
+  --warn: #e6b84a; --warn-soft: #2d2614; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--f-body); }
+.wrap { max-width: 1080px; margin: 0 auto; padding-block: 20px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; letter-spacing: .01em; }
+h1 { font-size: 2.1rem; font-weight: 700; text-transform: uppercase; }
+h2 { font-size: 1.45rem; font-weight: 600; text-transform: uppercase; }
+h3 { font-size: 1.1rem; font-weight: 600; text-transform: uppercase; }
+p { margin: 0; max-width: 68ch; }
+.num { font-family: var(--f-num); font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+.label { font-family: var(--f-display); text-transform: uppercase; letter-spacing: .08em; font-size: .8rem; color: var(--muted); font-weight: 600; }
+a { color: var(--accent); }
+
+header { display: grid; gap: 14px; padding-bottom: 18px; border-bottom: 3px solid var(--ink); }
+.headrow { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: 8px 24px; }
+.stats { display: flex; flex-wrap: wrap; gap: 8px 28px; }
+.stat { display: grid; }
+.stat b { font-family: var(--f-num); font-size: 1.25rem; font-weight: 500; }
+
+nav { display: flex; gap: 4px; margin: 18px 0; overflow-x: auto; }
+nav a { font-family: var(--f-display); text-transform: uppercase; letter-spacing: .06em; font-weight: 600;
+  text-decoration: none; color: var(--muted); padding: 8px 14px; border-radius: 4px; white-space: nowrap; }
+nav a[aria-current="page"] { background: var(--ink); color: var(--bg); }
+nav a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+section { display: grid; gap: 16px; }
+.note { background: var(--accent-soft); padding: 12px 14px; border-radius: 6px; display: grid; gap: 4px; }
+.note.warn { background: var(--warn-soft); }
+
+/* Price board */
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: .88rem; }
+.game { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; display: grid;
+  grid-template-columns: minmax(150px, 1fr) 2fr; }
+.game.thin { opacity: .62; }
+.gmeta { padding: 12px 14px; border-right: 1px solid var(--line); display: grid; gap: 4px; align-content: start; min-width: 0; }
+.gmeta .when { font-family: var(--f-num); font-size: .82rem; color: var(--muted); }
+.gmeta .matchup { font-family: var(--f-display); font-size: 1.3rem; font-weight: 700; }
+.sides { display: grid; grid-template-columns: 1fr 1fr; min-width: 0; }
+.side { padding: 12px 14px; display: grid; gap: 6px; align-content: start; min-width: 0; }
+.side + .side { border-left: 1px solid var(--line); }
+.side .team { font-family: var(--f-display); font-weight: 600; font-size: 1.05rem; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.trio { display: grid; grid-template-columns: repeat(3, auto); gap: 2px 14px; justify-content: start; font-size: .9rem; }
+.trio .k { font-size: .72rem; }
+.pill { font-family: var(--f-display); text-transform: uppercase; letter-spacing: .06em; font-size: .72rem; font-weight: 700;
+  padding: 2px 7px; border-radius: 3px; background: var(--line); color: var(--ink); }
+.pill.value { background: var(--good); color: var(--panel); }
+.pill.warn { background: var(--warn); color: var(--panel); }
+.pos { color: var(--good); } .neg { color: var(--bad); }
+.gflags { grid-column: 1 / -1; border-top: 1px solid var(--line); padding: 8px 14px; font-size: .88rem; color: var(--warn); }
+.gfoot { grid-column: 1 / -1; border-top: 1px solid var(--line); padding: 6px 14px; font-size: .82rem; display: flex; flex-wrap: wrap; gap: 4px 18px; color: var(--muted); }
+
+/* Combo builder */
+.combo { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; align-items: start; }
+.picker { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; max-height: 620px; overflow-y: auto; }
+.pick-row { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+.pick-row .who { min-width: 0; font-size: .92rem; }
+.pick-row .who small { display: block; color: var(--muted); font-family: var(--f-num); font-size: .76rem; }
+.pick-btn { font: 600 .9rem var(--f-display); text-transform: uppercase; letter-spacing: .04em; border: 1px solid var(--line);
+  background: var(--bg); color: var(--ink); border-radius: 4px; padding: 6px 10px; cursor: pointer; min-width: 64px; }
+.pick-btn[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.ticket { background: var(--panel); border: 2px solid var(--ink); border-radius: 6px; padding: 16px; display: grid; gap: 14px; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); }
+.ticket ol { margin: 0; padding-left: 1.2em; display: grid; gap: 2px; font-size: .92rem; }
+.big { font-family: var(--f-num); font-size: 1.9rem; font-weight: 500; line-height: 1.1; }
+.kv { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; font-size: .92rem; }
+.kv dt { color: var(--muted); } .kv dd { margin: 0; text-align: right; }
+.btns { display: flex; flex-wrap: wrap; gap: 8px; }
+button.act { font: 600 .9rem var(--f-display); text-transform: uppercase; letter-spacing: .05em; border: 0; border-radius: 4px;
+  padding: 8px 12px; cursor: pointer; background: var(--accent); color: var(--panel); }
+button.act.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+input[type="text"] { font: 1rem var(--f-num); padding: 7px 9px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink); width: 9em; }
+
+/* Model check */
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 14px; display: grid; gap: 6px; }
+.tablewrap { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; }
+table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+th, td { padding: 8px 12px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th { font-family: var(--f-display); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; color: var(--muted); font-size: .8rem; }
+td { font-family: var(--f-num); font-variant-numeric: tabular-nums; }
+svg text { fill: var(--muted); font: 11px var(--f-num); }
+
+@media (max-width: 760px) {
+  .game { grid-template-columns: 1fr; }
+  .gmeta { border-right: 0; border-bottom: 1px solid var(--line); }
+  .combo { grid-template-columns: 1fr; }
+  .ticket { position: static; }
+}
+@media (max-width: 420px) {
+  .sides { grid-template-columns: 1fr; }
+  .side + .side { border-left: 0; border-top: 1px solid var(--line); }
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="headrow">
+      <div>
+        <div class="label">Polymarket · NFL moneylines</div>
+        <h1>NFL Edge Board</h1>
+      </div>
+      <div class="muted" id="updated"></div>
+    </div>
+    <div class="stats" id="stats"></div>
+  </header>
+
+  <nav aria-label="Sections">
+    <a href="#board">Today's prices</a>
+    <a href="#combo">Combo builder</a>
+    <a href="#model">Model check</a>
+    <a href="#record">Track record</a>
+  </nav>
+
+  <section id="v-board">
+    <div class="note">
+      <h3>How to read a game</h3>
+      <p><b>Polymarket</b> is what one share of that team costs right now, including the taker fee; it pays $1 if the team wins. <b>Books</b> is the sportsbook consensus chance of winning with their margin removed. That's the best available estimate of the true probability. <b>Value</b> is Books minus Polymarket cost. A side gets a <span class="pill value">Value</span> tag when that gap reaches the threshold and there's no QB warning. <b>Elo</b> is our own model, shown for reference only, because it lost to the market in testing.</p>
+    </div>
+    <div id="games" style="display:grid;gap:10px"></div>
+  </section>
+
+  <section id="v-combo" hidden>
+    <div class="note warn">
+      <h3>Read this before building a 7-leg combo</h3>
+      <p>A combo wins only if every leg wins, so the odds multiply. Polymarket has no parlay button, so this prices the combo leg by leg from its live costs. Use it to check whether a DraftKings or FanDuel parlay offer is fair: enter their odds below and compare.</p>
+      <p>A positive expected return here comes from small per-leg price gaps multiplied together. It assumes the sportsbook probabilities are exactly right and the legs are independent. Even when it's positive, you lose almost every time, and one ticket tells you nothing.</p>
+    </div>
+    <div class="combo">
+      <div class="picker" id="picker" role="list" aria-label="Available legs"></div>
+      <aside class="ticket" aria-live="polite">
+        <div class="headrow"><h2>Your combo</h2><span class="label" id="legcount"></span></div>
+        <ol id="legs"></ol>
+        <div>
+          <div class="label">Chance every leg wins (books)</div>
+          <div class="big" id="jointp">—</div>
+          <div class="muted" id="oneinn"></div>
+        </div>
+        <dl class="kv">
+          <dt>Fair payout</dt><dd class="num" id="fair">—</dd>
+          <dt>Polymarket payout</dt><dd class="num" id="pmpay">—</dd>
+          <dt>Expected return</dt><dd class="num" id="pmev">—</dd>
+        </dl>
+        <div style="display:grid;gap:6px">
+          <label class="label" for="bookodds">Sportsbook parlay odds (American, e.g. +2400)</label>
+          <div class="btns"><input type="text" id="bookodds" inputmode="numeric" placeholder="+2400" autocomplete="off"><span class="num" id="bookev" style="align-self:center"></span></div>
+        </div>
+        <div class="btns">
+          <button class="act" id="fill7" type="button">Fill 7 best-priced legs</button>
+          <button class="act ghost" id="clear" type="button">Clear</button>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <section id="v-model" hidden>
+    <div class="note">
+      <h3>Can our model beat the market?</h3>
+      <p id="model-summary"></p>
+    </div>
+    <div class="cards" id="model-cards"></div>
+    <h3>Calibration: when the model says X%, how often does it happen?</h3>
+    <div class="card" style="max-width:640px"><svg id="calib" viewBox="0 0 520 300" role="img" aria-label="Calibration chart" style="width:100%;height:auto"></svg></div>
+    <h3>Betting every disagreement at the closing line</h3>
+    <div class="tablewrap"><table id="bet-table"></table></div>
+  </section>
+
+  <section id="v-record" hidden>
+    <div class="note">
+      <h3>Every flagged pick, logged when it was flagged</h3>
+      <p>Each daily run logs new Value flags with the price at that moment, refreshes the latest price until kickoff, then settles the result. <b>CLV</b> (closing-line value) is the last price seen before kickoff minus your entry price. If it stays positive over many picks, you're consistently buying before the market moves your way. That shows real edge far sooner than wins and losses do.</p>
+    </div>
+    <div class="cards" id="record-cards"></div>
+    <div class="tablewrap"><table id="record-table"></table></div>
+  </section>
+</div>
+
+<script>
+const DATA = /*__DATA__*/null;
+const $ = id => document.getElementById(id);
+const pct = (x, d = 1) => x == null ? "—" : (x * 100).toFixed(d) + "%";
+const cents = x => x == null ? "—" : (x * 100).toFixed(1) + "¢";
+const signed = (x, d = 1) => x == null ? "—" : (x >= 0 ? "+" : "") + (x * 100).toFixed(d);
+const cls = x => x == null ? "" : x >= 0 ? "pos" : "neg";
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+const games = DATA.games;
+// Usable for value reads and combos: a real order book, a sportsbook line, and no QB change
+// (the line in our data may predate the QB news).
+const tradable = games.filter(g => !g.thin && g.sides[0].book_p != null && !g.qb_flags.length);
+const flags = games.flatMap(g => g.sides.filter(s => s.flag));
+
+$("updated").textContent = "Updated " + DATA.generated_et;
+$("stats").innerHTML = [
+  ["Games listed", games.length],
+  ["Usable games", tradable.length],
+  ["Value flags", flags.length],
+  ["Flag threshold", "+" + (DATA.threshold * 100).toFixed(0) + " pts"],
+  ["Taker fee rate", DATA.fee_rate],
+].map(([k, v]) => `<div class="stat"><span class="label">${k}</span><b>${v}</b></div>`).join("");
+
+/* ---------- Board ---------- */
+function sideHTML(s, g) {
+  const tags = [];
+  if (s.flag) tags.push('<span class="pill value">Value</span>');
+  return `<div class="side">
+    <div class="team">${esc(s.team)} ${tags.join("")}</div>
+    <div class="trio">
+      <span class="label k">Polymarket</span><span class="label k">Books</span><span class="label k">Elo</span>
+      <span class="num">${cents(s.cost)}</span><span class="num">${pct(s.book_p)}</span><span class="num muted">${pct(s.elo_p)}</span>
+    </div>
+    <div class="num" style="font-size:.88rem">Value <b class="${cls(s.value)}">${s.value == null ? "—" : signed(s.value) + " pts"}</b></div>
+  </div>`;
+}
+$("games").innerHTML = games.length ? games.map(g => {
+  const notes = [];
+  if (g.thin) notes.push("No real market yet: Polymarket's order book is too thin, so these prices aren't usable.");
+  g.qb_flags.forEach(f => notes.push("QB change: " + f + ". The books have priced this in; our model hasn't, so this game is never flagged."));
+  if (!g.thin && g.sides[0].book_p == null) notes.push("No sportsbook line yet, so there's no value read.");
+  const spread = g.spread_line == null ? "" : `Books spread: ${g.spread_line > 0 ? esc(g.home) + " −" + g.spread_line : esc(g.away) + " −" + Math.abs(g.spread_line)}`;
+  return `<article class="game${g.thin ? " thin" : ""}">
+    <div class="gmeta"><span class="when">Wk ${g.week} · ${esc(g.kickoff_et)} ET</span>
+      <span class="matchup">${esc(g.away)} @ ${esc(g.home)}</span></div>
+    <div class="sides">${sideHTML(g.sides[0], g)}${sideHTML(g.sides[1], g)}</div>
+    ${notes.length ? `<div class="gflags">${notes.map(esc).join("<br>")}</div>` : ""}
+    <div class="gfoot"><span>${spread}</span><span class="num">Vol $${g.pm_volume.toLocaleString()}</span>
+      <a href="${esc(g.pm_url)}" target="_blank" rel="noopener">Open on Polymarket</a></div>
+  </article>`;
+}).join("") : '<p class="muted">No open NFL games on Polymarket right now.</p>';
+
+/* ---------- Combo builder ---------- */
+const legPool = tradable.flatMap(g => g.sides.map(s => ({ ...s, game_id: g.game_id, label: `${s.team} over ${s.side === "home" ? g.away : g.home}`, when: g.kickoff_et })));
+let chosen = new Map();  // game_id -> leg (one side per game)
+
+function renderPicker() {
+  $("picker").innerHTML = tradable.map(g => g.sides.map(s => {
+    const on = chosen.get(g.game_id)?.team === s.team;
+    return `<div class="pick-row" role="listitem">
+      <div class="who">${esc(s.team)} vs ${esc(s.side === "home" ? g.away : g.home)}${s.side === "home" ? " (home)" : ""}
+        <small>${esc(g.kickoff_et)} · books ${pct(s.book_p, 0)} · cost ${cents(s.cost)}</small></div>
+      <span class="num ${cls(s.value)}" style="font-size:.85rem">${signed(s.value)}</span>
+      <button class="pick-btn" type="button" aria-pressed="${on}" data-g="${g.game_id}" data-t="${s.team}">${on ? "Added" : "Add"}</button>
+    </div>`;
+  }).join("")).join("") || '<p class="muted" style="padding:12px">No games with both a usable Polymarket book and a sportsbook line right now.</p>';
+}
+function americanToDecimal(s) {
+  const n = parseFloat(String(s).replace(/[^\d.+-]/g, ""));
+  if (!isFinite(n) || Math.abs(n) < 100) return null;
+  return n > 0 ? 1 + n / 100 : 1 + 100 / -n;
+}
+function renderTicket() {
+  const legs = [...chosen.values()];
+  $("legcount").textContent = legs.length + (legs.length === 1 ? " leg" : " legs");
+  $("legs").innerHTML = legs.map(l => `<li>${esc(l.label)} <span class="num muted">${pct(l.book_p, 0)}</span></li>`).join("") || '<li class="muted" style="list-style:none;margin-left:-1.2em">Add legs from the list.</li>';
+  if (!legs.length) { ["jointp","oneinn","fair","pmpay","pmev","bookev"].forEach(id => $(id).textContent = id === "oneinn" || id === "bookev" ? "" : "—"); return; }
+  const p = legs.reduce((a, l) => a * l.book_p, 1);
+  const cost = legs.reduce((a, l) => a * l.cost, 1);
+  $("jointp").textContent = pct(p, p < 0.01 ? 2 : 1);
+  $("oneinn").textContent = `About 1 in ${Math.round(1 / p).toLocaleString()} combos like this hits. You'd lose the other ${Math.round(1 / p - 1).toLocaleString()}.`;
+  $("fair").textContent = (1 / p).toLocaleString(undefined, {maximumFractionDigits: 1}) + "×";
+  $("pmpay").textContent = (1 / cost).toLocaleString(undefined, {maximumFractionDigits: 1}) + "×";
+  const ev = p / cost - 1;
+  $("pmev").innerHTML = `<span class="${cls(ev)}">${ev >= 0 ? "+" : ""}${(ev * 100).toFixed(1)}%</span>`;
+  const dec = americanToDecimal($("bookodds").value);
+  $("bookev").innerHTML = dec ? (() => { const e = p * dec - 1; return `Expected return <b class="${cls(e)}">${e >= 0 ? "+" : ""}${(e * 100).toFixed(1)}%</b>`; })() : "";
+}
+$("picker").addEventListener("click", e => {
+  const b = e.target.closest(".pick-btn"); if (!b) return;
+  const leg = legPool.find(l => l.game_id === b.dataset.g && l.team === b.dataset.t);
+  if (chosen.get(leg.game_id)?.team === leg.team) chosen.delete(leg.game_id); else chosen.set(leg.game_id, leg);
+  renderPicker(); renderTicket();
+});
+$("fill7").addEventListener("click", () => {
+  const best = new Map();
+  for (const l of legPool) if (!best.has(l.game_id) || l.value > best.get(l.game_id).value) best.set(l.game_id, l);
+  chosen = new Map([...best.values()].sort((a, b) => b.value - a.value).slice(0, 7).map(l => [l.game_id, l]));
+  renderPicker(); renderTicket();
+});
+$("clear").addEventListener("click", () => { chosen.clear(); renderPicker(); renderTicket(); });
+$("bookodds").addEventListener("input", renderTicket);
+renderPicker(); renderTicket();
+
+/* ---------- Model check ---------- */
+const bt = DATA.backtest;
+$("model-summary").textContent = `We tuned the Elo model on ${bt.tune_seasons[0]}–${bt.tune_seasons[1]} and tested it on ${bt.test_games.toLocaleString()} games from ${bt.test_seasons[0]}–${bt.test_seasons[1]} that it never saw. The closing sportsbook line beat it on every measure, and betting the model's disagreements with the market lost money at every threshold. That's why the board uses sportsbook prices as the benchmark and shows Elo for reference only.`;
+$("model-cards").innerHTML = [
+  ["Picked the winner", pct(bt.model.accuracy), pct(bt.market.accuracy), "Higher is better"],
+  ["Log loss", bt.model.log_loss.toFixed(4), bt.market.log_loss.toFixed(4), "Lower is better: penalizes confident misses"],
+  ["Brier score", bt.model.brier.toFixed(4), bt.market.brier.toFixed(4), "Lower is better"],
+].map(([k, m, mk, h]) => `<div class="card"><span class="label">${k}</span>
+  <div class="kv"><dt>Elo model</dt><dd class="num">${m}</dd><dt>Market (closing line)</dt><dd class="num"><b>${mk}</b></dd></div>
+  <span class="muted" style="font-size:.82rem">${h}</span></div>`).join("");
+
+(function calibChart() {
+  const W = 520, H = 300, L = 46, R = 14, T = 14, B = 40;
+  const x = v => L + v * (W - L - R), y = v => H - B - v * (H - T - B);
+  let s = "";
+  for (let t = 0; t <= 1.0001; t += 0.2) {
+    s += `<line x1="${x(0)}" x2="${x(1)}" y1="${y(t)}" y2="${y(t)}" stroke="var(--line)" stroke-width="1"/>`;
+    s += `<text x="${L - 8}" y="${y(t) + 4}" text-anchor="end">${Math.round(t * 100)}%</text>`;
+    s += `<text x="${x(t)}" y="${H - B + 18}" text-anchor="middle">${Math.round(t * 100)}%</text>`;
+  }
+  s += `<line x1="${x(0)}" y1="${y(0)}" x2="${x(1)}" y2="${y(1)}" stroke="var(--muted)" stroke-dasharray="4 4" stroke-width="1"/>`;
+  s += `<text x="${x(0.5)}" y="${H - 6}" text-anchor="middle">Model said</text>`;
+  s += `<text x="12" y="${y(0.5)}" text-anchor="middle" transform="rotate(-90 12 ${y(0.5)})">Actually happened</text>`;
+  const pts = bt.calibration;
+  s += `<polyline fill="none" stroke="var(--accent)" stroke-width="2" points="${pts.map(c => x(c.predicted) + "," + y(c.actual)).join(" ")}"/>`;
+  pts.forEach(c => { s += `<circle cx="${x(c.predicted)}" cy="${y(c.actual)}" r="${3 + Math.sqrt(c.games) / 5}" fill="var(--accent)" fill-opacity=".85"><title>${c.games} games: said ${pct(c.predicted)}, happened ${pct(c.actual)}</title></circle>`; });
+  $("calib").innerHTML = s;
+})();
+
+$("bet-table").innerHTML = `<thead><tr><th>Model beats market by</th><th>Bets</th><th>Won</th><th>Units</th><th>Return</th></tr></thead><tbody>` +
+  bt.betting.filter(b => b.bets).map(b => `<tr><td>${Math.round(b.threshold * 100)}+ pts</td><td>${b.bets.toLocaleString()}</td><td>${pct(b.win_rate)}</td>
+  <td class="${cls(b.units)}">${b.units > 0 ? "+" : ""}${b.units}</td><td class="${cls(b.roi)}">${b.roi > 0 ? "+" : ""}${(b.roi * 100).toFixed(1)}%</td></tr>`).join("") + "</tbody>";
+
+/* ---------- Track record ---------- */
+const led = DATA.ledger;
+const settled = led.filter(r => r.result && r.result !== "push");
+const profit = settled.reduce((a, r) => a + r.profit_per_dollar, 0);
+const clvs = led.filter(r => r.clv != null).map(r => r.clv);
+$("record-cards").innerHTML = [
+  ["Picks logged", led.length],
+  ["Settled", settled.length],
+  ["Won", settled.length ? pct(settled.filter(r => r.result === "win").length / settled.length) : "—"],
+  ["Profit per $1 staked", settled.length ? (profit >= 0 ? "+" : "") + "$" + profit.toFixed(2) : "—"],
+  ["Average CLV", clvs.length ? signed(clvs.reduce((a, b) => a + b, 0) / clvs.length) + "¢" : "—"],
+].map(([k, v]) => `<div class="card"><span class="label">${k}</span><span class="big" style="font-size:1.5rem">${v}</span></div>`).join("");
+$("record-table").innerHTML = led.length
+  ? `<thead><tr><th>Pick</th><th>Logged</th><th>Entry</th><th>Books</th><th>Last price</th><th>CLV</th><th>Result</th></tr></thead><tbody>` +
+    led.slice().reverse().map(r => `<tr><td>${esc(r.team)} · ${esc(r.game_id)}</td><td>${esc(r.logged_at.slice(0, 10))}</td><td>${cents(r.entry_ask)}</td>
+    <td>${pct(r.book_p)}</td><td>${cents(r.last_ask)}</td><td class="${cls(r.clv)}">${r.clv == null ? "—" : signed(r.clv) + "¢"}</td><td>${esc(r.result || "open")}</td></tr>`).join("") + "</tbody>"
+  : `<tbody><tr><td style="text-align:left;white-space:normal;font-family:var(--f-body)">No picks yet. The first time a game shows a Value tag, it's logged here automatically with its entry price.</td></tr></tbody>`;
+
+/* ---------- Tabs ---------- */
+const views = ["board", "combo", "model", "record"];
+function show() {
+  const v = views.includes(location.hash.slice(1)) ? location.hash.slice(1) : "board";
+  views.forEach(n => $("v-" + n).hidden = n !== v);
+  document.querySelectorAll("nav a").forEach(a => {
+    if (a.getAttribute("href") === "#" + v) a.setAttribute("aria-current", "page");
+    else a.removeAttribute("aria-current");
+  });
+}
+window.addEventListener("hashchange", show);
+show();
+</script>
