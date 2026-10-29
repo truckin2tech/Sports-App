@@ -1,7 +1,8 @@
 name: sports-edge paper trading
 
 # Hourly: pull Polymarket + nflverse, open paper trades on Value flags,
-# record pre-kickoff prices, settle finished games, commit the trade log.
+# record pre-kickoff prices, settle finished games, commit the trade log,
+# and publish the dashboard to GitHub Pages.
 # GitHub only runs scheduled workflows from the default branch.
 on:
   schedule:
@@ -10,6 +11,8 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 concurrency:
   group: sports-edge-paper
@@ -44,3 +47,17 @@ jobs:
           git commit -m "Paper trades: $(date -u +'%Y-%m-%d %H:%M') UTC"
           git pull --rebase
           git push
+      - run: cp output/nfl-edge.html output/index.html
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: sports-edge/output
+
+  publish:
+    needs: run
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4
